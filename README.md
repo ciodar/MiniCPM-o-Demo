@@ -169,7 +169,6 @@ pip install -U huggingface_hub
 
 # Download the model
 huggingface-cli download openbmb/MiniCPM-o-4_5 --local-dir /path/to/your/MiniCPM-o-4_5
-
 ```
 
 If you cannot access Hugging Face, you can use the following two methods to download the model in advance.
@@ -193,12 +192,10 @@ modelscope download --model OpenBMB/MiniCPM-o-4_5 --local_dir /path/to/your/Mini
 ```
 
 
+
 </details>
 
 <br/>
-
-Modify `"gateway_port": 8006` to change the deployment port. The default is 8006.
-
 
 **4. Build the Mobile Frontend and Start the Service**
 
@@ -264,12 +261,15 @@ CUDA_VISIBLE_DEVICES=0 PYTHONPATH=. .venv/base/bin/python worker.py --worker-ind
 # Gateway
 PYTHONPATH=. .venv/base/bin/python gateway.py --port 10024 --workers localhost:22400
 ```
+
 </details>
 
 **5. Stop the Service:**
 ```bash
 pkill -f "gateway.py|worker.py"
 ```
+
+<br/>
 
 <br/>
 
@@ -339,6 +339,74 @@ docker compose up -d
 <br/>
 <br/>
 
+## LitServe Deployment (Lightning AI Studio/Lightning Cloud)
+
+For deployment to Lightning AI Studio or Lightning Cloud, you can use LitServe which provides autoscaling, monitoring, and one-click deployment.
+
+### Prerequisites
+- Lightning AI account (free tier available)
+- NVIDIA GPU with > 28 GB VRAM (for local testing)
+- Docker (for local testing)
+
+### Local Testing with LitServe
+
+1. Install LitServe dependencies:
+```bash
+pip install -r requirements_litserve.txt
+```
+
+2. Run the LitServe server:
+```bash
+python litserve_server.py --host 0.0.0.0 --port 8000
+```
+
+3. Test the server:
+```bash
+# Chat mode
+curl -X POST http://localhost:8000/lit/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [{"role": "user", "content": "Hello, how are you?"}],
+    "generation": {"max_new_tokens": 100}
+  }'
+```
+
+### Deployment to Lightning Cloud
+
+To deploy to Lightning Cloud with autoscaling and monitoring:
+
+```bash
+lightning deploy litserve_server.py --cloud
+```
+
+This will:
+- Build a Docker container with your code
+- Deploy it to Lightning Cloud GPUs
+- Provide autoscaling based on traffic
+- Give you monitoring and logs
+- Provide a public HTTPS endpoint
+
+### Deployment to Lightning AI Studio
+
+For development and testing in Lightning AI Studio:
+
+1. Upload this repository to a Lightning AI Studio
+2. Open a terminal in the studio
+3. Run:
+```bash
+pip install -r requirements_litserve.txt
+python litserve_server.py --host 0.0.0.0 --port 8000
+```
+4. The server will be accessible at the studio's assigned port
+
+### Configuration Notes
+
+When deploying via LitServe:
+- Model weights will be downloaded from Hugging Face automatically if `model_path` in `config.json` is set to a Hugging Face repository
+- For private models, ensure the model is accessible or mount it via workspace volume
+- Refer to `config.example.json` for all available configuration options
+- The LitServe server supports all four modes: chat, half_duplex, duplex (omni), and duplex (audio)
+- Use the same request/response format as the original gateway for compatibility
 
 ## C++ Backend (llama.cpp)
 
@@ -359,6 +427,8 @@ Ready-to-use desktop installers are available for Windows and macOS. Download fr
 
 <br/>
 
+<br/>
+
 ## Project Structure
 
 **Project Code Structure**
@@ -368,7 +438,9 @@ minicpmo45_service/
 ├── config.example.json       # Config example (full fields + defaults)
 ├── config.py                 # Config loading logic (Pydantic definition + JSON loading)
 ├── requirements.txt          # Python dependencies
+├── requirements_litserve.txt # LitServe dependencies for Lightning Cloud deployment
 ├── start_all.sh              # One-click startup script
+├── litserve_server.py        # LitServe server for Lightning AI Studio/Lightning Cloud
 │
 ├── gateway.py                # Gateway (routing, queuing, WS proxy)
 ├── worker.py                 # Worker (inference service)
@@ -395,6 +467,7 @@ minicpmo45_service/
 | Audio Full-Duplex | https://localhost:8006/audio_duplex |
 | Dashboard | https://localhost:8006/admin |
 | Docs / Realtime API Docs | https://localhost:8006/docs |
+| LitServe Server | http://localhost:8000/lit (for LitServe deployment) |
 
 <br/>
 <br/>
@@ -438,6 +511,7 @@ python worker.py --model-path /alt/model --pt-path /alt/weights.pt --ref-audio-p
 # Gateway
 python gateway.py --port 10025 --workers localhost:22400,localhost:22401 --http
 ```
+
 
 
 ## Resource Consumption

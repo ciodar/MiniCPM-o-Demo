@@ -18,3 +18,29 @@ services:
               count: all
               capabilities: [gpu]
     restart: unless-stopped
+
+  # LitServe service for Lightning AI Studio/Lightning Cloud deployment
+  minicpm-o-litserve:
+    build: .
+    image: minicpm-o-litserve:latest
+    container_name: minicpm-o-litserve
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./workspace:/workspace
+      - ./requirements_litserve.txt:/tmp/requirements_litserve.txt
+    environment:
+      - LITServe_API=true
+    command: >
+      bash -c "
+      pip install -r /tmp/requirements_litserve.txt &&
+      python litserve_server.py --host 0.0.0.0 --port 8000
+      "
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
