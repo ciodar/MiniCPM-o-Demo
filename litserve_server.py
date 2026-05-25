@@ -18,6 +18,7 @@ from datetime import datetime
 import numpy as np
 import torch
 import litserve as ls
+import uvicorn
 from fastapi import HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -32,6 +33,9 @@ from core.schemas import (
     StreamingRequest, StreamingChunk,
     DuplexConfig, DuplexGenerateResult,
     Message, Role
+)
+from core.schemas.common import (
+    TextContent, AudioContent, ImageContent, VideoContent
 )
 from session_recorder import (
     DuplexSessionRecorder,
@@ -94,6 +98,9 @@ session_manager = SessionManager()
 
 class MiniCPMOChatAPI(ls.LitAPI):
     """LitAPI for Chat mode (turn-based, stateless)."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def setup(self, device: str):
         """Load the model once per worker."""
@@ -194,6 +201,9 @@ class MiniCPMOChatAPI(ls.LitAPI):
 
 class MiniCPMOHalfDuplexAPI(ls.LitAPI):
     """LitAPI for Half-Duplex Audio mode (stateful, streaming)."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def setup(self, device: str):
         """Load the model once per worker."""
@@ -359,6 +369,9 @@ class MiniCPMOHalfDuplexAPI(ls.LitAPI):
 
 class MiniCPMODuplexAPI(ls.LitAPI):
     """LitAPI for Duplex mode (full-duplex, bidirectional streaming)."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def setup(self, device: str):
         """Load the model once per worker."""
@@ -546,21 +559,31 @@ class MiniCPMODuplexAPI(ls.LitAPI):
 
 def create_litserve_app():
     """Create and configure the LitServe server with all APIs."""
-    # Create APIs
-    chat_api = MiniCPMOChatAPI(stream=False)
-    half_duplex_api = MiniCPMOHalfDuplexAPI(stream=True)
-    duplex_api = MiniCPMODuplexAPI(stream=True)
-
-    # Create LitServe server
-    server = ls.LitServer(
-        api=chat_api,  # Default API
-        accelerator="auto",
-        device_ids=[0],  # Will be overridden by Lightning Cloud
-        batch_size=1,
-        max_batch_size=1,
-        timeout=30,
+    # Create APIs with LitServe configuration parameters
+    chat_api = MiniCPMOChatAPI(
         stream=False,
+        max_batch_size=1,
+        batch_timeout=0.0,
         api_path="/predict",
+    )
+    half_duplex_api = MiniCPMOHalfDuplexAPI(
+        stream=True,
+        max_batch_size=1,
+        batch_timeout=0.0,
+        api_path="/predict",
+    )
+    duplex_api = MiniCPMODuplexAPI(
+        stream=True,
+        max_batch_size=1,
+        batch_timeout=0.0,
+        api_path="/predict",
+    )
+
+    # Create LitServe server - simplified constructor
+    server = ls.LitServer(
+        lit_api=chat_api,  # Default API
+        accelerator="auto",
+        timeout=30,
     )
 
     # Note: For true multi-api support, we'd need to mount different APIs
