@@ -1359,6 +1359,7 @@ class UnifiedProcessor(BaseProcessor):
             self.model_path,
             trust_remote_code=True,
             _attn_implementation=resolved_attn,
+            torch_dtype=torch.bfloat16,
         )
 
         if is_quantized:
