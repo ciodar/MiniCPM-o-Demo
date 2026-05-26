@@ -21,8 +21,51 @@ cleanup() {
     echo ""
     echo "[Cleanup] Stopping all services..."
     for pid_file in tmp/*.pid; do
-        [ -f "$pid_file" ] && kill "$(cat "$pid_file")" 2>/dev/null || true
+        if [ -f "$pid_file" ]; then
+            pid=$(cat "$pid_file")
+            kill "$pid" 2>/dev/null && echo "[Cleanup] Killed PID $pid" || true
+        fi
     done
+    rm -f tmp/*.pid
+}
+
+cleanup_stale() {
+    local port=$1
+    local pids
+    pids=$(lsof -ti:"$port" 2>/dev/null || true)
+    # Fallback: try ss (no lsof on some minimal images)
+    if [ -z "$pids" ]; then
+        pids=$(ss -tlnpH "sport = :$port" 2>/dev/null | sed -n 's/.*pid=\([0-9]\+\).*/\1/p' || true)
+    fi
+    # Fallback: try fuser
+    if [ -z "$pids" ]; then
+        pids=$(fuser "$port/tcp" 2>/dev/null | tr ' ' '\n' || true)
+    fi
+    if [ -n "$pids" ]; then
+        echo "[Cleanup] Port $port already in use by PID(s): $pids — killing..."
+        kill -9 $pids 2>/dev/null || true
+        sleep 1
+    fi
+}
+
+# ── Kill leftover processes from previous runs ──────────────────────────────
+cleanup_previous_run() {
+    echo "[Cleanup] Checking for leftover processes..."
+    # Kill old workers by PID file
+    for pid_file in tmp/worker_*.pid tmp/gateway.pid tmp/litserve.pid; do
+        if [ -f "$pid_file" ]; then
+            kill -9 "$(cat "$pid_file")" 2>/dev/null || true
+        fi
+    done
+    # Force-kill anything holding our ports
+    cleanup_stale "$GATEWAY_PORT"
+    cleanup_stale "$LITSERVE_PORT"
+    for i in $(seq 0 7); do
+        cleanup_stale $((WORKER_BASE_PORT + i))
+    done
+    # Clear stale PID files and logs
+    rm -f tmp/*.pid tmp/gateway.log tmp/litserve.log tmp/worker_*.log
+    sleep 2
 }
 
 # ── Config ──────────────────────────────────────────────────────────────────
@@ -68,6 +111,9 @@ echo "  Gateway:    http://localhost:$GATEWAY_PORT"
 echo "  LitServe:   http://localhost:$LITSERVE_PORT"
 echo "  Workers:    localhost:$WORKER_BASE_PORT ~ localhost:$((WORKER_BASE_PORT + NUM_GPUS - 1))"
 echo "=================================================="
+
+# ── Kill stale processes from previous runs ─────────────────────────────────
+cleanup_previous_run
 
 # ── Build mobile frontend (optional) ────────────────────────────────────────
 if [ -f "$PROJECT_DIR/frontend/mobile/package.json" ] && [ "${SKIP_MOBILE_BUILD:-0}" != "1" ]; then
@@ -129,6 +175,7 @@ echo ""
 echo "[Gateway] Starting on port $GATEWAY_PORT..."
 nohup env PYTHONPATH=. $PYTHON gateway.py \
     --port $GATEWAY_PORT \
+    --http \
     --workers "$WORKER_ADDRS" \
     > "tmp/gateway.log" 2>&1 &
 echo $! > "tmp/gateway.pid"
