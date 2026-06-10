@@ -20,7 +20,7 @@ set -e  # Exit on error (flash-attn section handled separately)
 
 # ============ Configuration ============
 
-VENV_DIR=".venv/base"
+VENV_DIR=".venv/"
 PIP="${VENV_DIR}/bin/pip"
 PYTHON_BIN="${VENV_DIR}/bin/python"
 PYTHON="${PYTHON:-python3.10}"

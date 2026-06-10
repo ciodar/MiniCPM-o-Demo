@@ -25,7 +25,7 @@ done
 # ============ 配置 ============
 # 从 config.py 读取端口配置
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-VENV_PYTHON="$PROJECT_DIR/.venv/base/bin/python"
+VENV_PYTHON="$PROJECT_DIR/.venv/bin/python"
 
 GATEWAY_PORT=$($VENV_PYTHON -c "import sys; sys.path.insert(0,'$PROJECT_DIR'); from config import get_config; print(get_config().gateway_port)" 2>/dev/null || echo "10024")
 WORKER_BASE_PORT=$($VENV_PYTHON -c "import sys; sys.path.insert(0,'$PROJECT_DIR'); from config import get_config; print(get_config().worker_base_port)" 2>/dev/null || echo "22400")

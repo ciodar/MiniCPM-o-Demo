@@ -4867,8 +4867,18 @@ def prepare_inputs_for_generation(
     cache_position=None,
     position_ids=None,
     use_cache=True,
+    next_sequence_length=None,
+    is_first_iteration=None,
     **kwargs,
 ):
+    # Compatibility with transformers >= 5.0 which passes next_sequence_length and is_first_iteration instead of cache_position
+    if cache_position is None and is_first_iteration is not None:
+        if is_first_iteration:
+            cache_position = torch.arange(0, device=input_ids.device)
+        else:
+            past_length = past_key_values.get_seq_length() if hasattr(past_key_values, 'get_seq_length') else (past_key_values[0][0].shape[2] if past_key_values is not None else 0)
+            cache_position = torch.arange(past_length, past_length + input_ids.shape[-1], device=input_ids.device)
+
     if past_key_values is not None:
         if isinstance(past_key_values, Cache):
             cache_length = past_key_values.get_seq_length()
@@ -4898,8 +4908,8 @@ def prepare_inputs_for_generation(
             # This clo≠clo≠clone call is needed to avoid recapturing cuda graphs with →rch.comπ≤→rch.comπ≤torch.compile's  mode=reduce−overheadmode=reduce-overheadmode="reduce-overhead, as otherwise the input positionidspositionidsposition_ids would have various stride during the decoding. Here, simply using .contiguous().contiguous().contiguous() is not sufficient as in the batch size = 1 case, positionidspositionidsposition_ids is already contiguous but with varying stride which retriggers a capture.
             position_ids = position_ids.clone(memory_format=torch.contiguous_format)
 
-    # if ∈putsembeds∈putsembedsinputs_embeds are passed, we only want to use them in the 1st generation step
-    if inputs_embeds is not None and cache_position[0] == 0:
+    # if inputs_embeds are passed, we only want to use them in the 1st generation step
+    if inputs_embeds is not None and ((cache_position is not None and cache_position[0] == 0) or is_first_iteration):
         model_inputs = {"inputs_embeds": inputs_embeds, "input_ids": None}
     else:
         # The clone here is for the same reason as for positionidspositionidsposition_ids.
